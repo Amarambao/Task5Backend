@@ -2,6 +2,7 @@
 using API.Interfaces;
 using Bogus;
 using System.Text;
+using Bogus.Distributions.Gaussian;
 
 namespace API.Services
 {
@@ -30,9 +31,9 @@ namespace API.Services
                     Author = GenerateAuthors(faker),
                     Publisher = $"{faker.Company.CompanySuffix()} {faker.Company.CompanyName()}",
                     ReleaseYear = faker.Date.BetweenDateOnly(new DateOnly(1800, 1, 1), new DateOnly(2025, 1, 1)).Year,
-                    Likes = GetWeightedRandom(faker, dto.AvgLikes),
+                    Likes = GetCountByRequest(faker, dto.AvgLikes.HasValue ? (double)dto.AvgLikes : null),
                 };
-                book.Reviews = GenerateReviews(faker, book.Title, dto.AvgReviewCount);
+                book.Reviews = GenerateReviews(faker, book.Title, dto.AvgReviewCount.HasValue ? (double)dto.AvgReviewCount : null);
 
                 books.Add(book);
             }
@@ -55,9 +56,9 @@ namespace API.Services
             return sb.ToString().TrimEnd([' ', ',']);
         }
 
-        private IEnumerable<ReviewDto> GenerateReviews(Faker faker, string bookTitle, decimal? requestedCount = null)
+        private IEnumerable<ReviewDto> GenerateReviews(Faker faker, string bookTitle, double? requestedCount = null)
         {
-            var reviewCount = GetWeightedRandom(faker, requestedCount);
+            var reviewCount = GetCountByRequest(faker, requestedCount);
 
             var reviews = new List<ReviewDto>();
 
@@ -71,24 +72,14 @@ namespace API.Services
             return reviews;
         }
 
-        private int GetWeightedRandom(Faker faker, decimal? requestedCount = null)
+        private int GetCountByRequest(Faker faker, double? requestedCount = null)
         {
-            if (requestedCount is null)
+            if (!requestedCount.HasValue)
                 return faker.Random.Int(0, 10);
+            
+            var result = faker.Random.GaussianInt(requestedCount.Value, 2);
 
-            var likeItems = new int[]
-            {
-                (int)Math.Floor(requestedCount.Value),
-                (int)Math.Ceiling(requestedCount.Value)
-            };
-
-            var likeWeights = new float[]
-            {
-                (float)(Math.Ceiling(requestedCount.Value) - requestedCount),
-                (float)(requestedCount - Math.Floor(requestedCount.Value)),
-            };
-
-            return faker.Random.WeightedRandom(likeItems, likeWeights);
+            return result >= 0 ? result : 0;
         }
     }
 }
